@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Futee · Jira Integration Core</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0f1e;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #f1f5f9;
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background: radial-gradient(ellipse 80% 50% at 50% 30%, rgba(59,130,246,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .page { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 48px; }
+  .org-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #0f1f3d; border: 1.5px solid #2563eb;
+    border-radius: 20px; padding: 5px 18px 5px 12px; margin-bottom: 20px;
+  }
+  .org-dot { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; animation: blink 2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .org-badge span { font-size: 11px; font-weight: 700; color: #93c5fd; letter-spacing: 3px; }
+  h1 { font-size: clamp(24px, 3.5vw, 38px); font-weight: 800; letter-spacing: -1px; color: #f8fafc; }
+  h1 em { font-style: normal; color: #60a5fa; }
+  .subtitle { margin-top: 10px; font-size: 16px; color: #64748b; }
+
+  .diagram-wrap { width: 100%; }
+  .diagram-wrap svg { width: 100%; height: auto; display: block; }
+
+  /* Pulse */
+  .pulse  { animation: pulse-ring 2.4s ease-out infinite; }
+  .pulse2 { animation: pulse-ring 2.4s ease-out 0.8s infinite; }
+  .pulse3 { animation: pulse-ring 2.4s ease-out 1.6s infinite; }
+  @keyframes pulse-ring { 0% { r: 115; opacity: 0.5; } 100% { r: 175; opacity: 0; } }
+
+  /* Flow dash */
+  .flow { animation: dash 1.8s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -26; } }
+
+  /* Legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: center;
+    background: #080c18; border: 1.5px solid #1e293b;
+    border-radius: 12px; padding: 14px 24px; margin: 28px 0;
+  }
+  .leg { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #94a3b8; }
+  .leg-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Cards */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 8px; }
+  @media (max-width: 900px) { .cards { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }
+
+  .card { border-radius: 14px; border: 1.5px solid; overflow: hidden; }
+  .card-top { height: 4px; }
+  .card-body { padding: 18px 20px 20px; }
+  .card-title { font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 10px; }
+  .card-desc { font-size: 14px; color: #64748b; line-height: 1.75; margin-bottom: 14px; }
+  .card-tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 12px; border-radius: 10px; border: 1px solid; }
+
+  .card-slack  { background: #13111a; border-color: #3d1a2e; }
+  .card-aws    { background: #13110a; border-color: #3d2a00; }
+  .card-vanta  { background: #0f0b1a; border-color: #2d1a4a; }
+  .card-github { background: #041a10; border-color: #0d3320; }
+  .card-conf   { background: #030c24; border-color: #0d2456; }
+  .card-email  { background: #0f0a04; border-color: #3d2000; }
+
+  footer { text-align: center; margin-top: 32px; font-size: 13px; color: #ffffff; letter-spacing: 0.5px; }
+
+  .page-indicator {
+    text-align: right;
+    font-size: 11px; font-weight: 700; letter-spacing: 3px;
+    color: #334155; margin-bottom: 16px;
+  }
+
+  /* ── BEFORE SECTION ── */
+  .before-section {
+    margin-bottom: 40px;
+    background: #0a0608; border: 1px solid #3d1010; border-radius: 16px; padding: 28px;
+  }
+  .before-header {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
+  }
+  .before-icon { font-size: 30px; flex-shrink: 0; }
+  .before-title { font-size: 20px; font-weight: 800; color: #fca5a5; }
+  .before-sub   { font-size: 13px; color: #7f1d1d; margin-top: 3px; }
+
+  .before-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;
+  }
+  @media (max-width: 800px) { .before-grid { grid-template-columns: 1fr; } }
+
+  .before-vendor {
+    border-radius: 14px; border: 1px solid; padding: 20px;
+  }
+  .ombu-card { background: #0f0606; border-color: #7f1d1d; }
+  .egw-card  { background: #06080f; border-color: #1e2a4a; }
+
+  .before-vendor-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+  }
+  .bv-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .ombu-dot { background: #ef4444; }
+  .egw-dot  { background: #60a5fa; }
+  .before-vendor-name { font-size: 16px; font-weight: 800; color: #f1f5f9; }
+  .bv-channel {
+    font-size: 11px; font-weight: 600; color: #475569;
+    background: #111827; border: 1px solid #1e293b;
+    border-radius: 20px; padding: 2px 10px; margin-left: auto;
+  }
+
+  .before-friction-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+  .friction-item { display: flex; gap: 12px; align-items: flex-start; }
+  .fi-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+  .fi-title { font-size: 13px; font-weight: 700; color: #fca5a5; margin-bottom: 3px; }
+  .fi-desc  { font-size: 12px; color: #64748b; line-height: 1.65; }
+
+  /* Email chain */
+  .before-email-chain { background: #0d0404; border: 1px solid #3d1010; border-radius: 10px; padding: 16px; }
+  .before-email-label { font-size: 11px; font-weight: 700; color: #7f1d1d; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+  .email-chain { display: flex; flex-direction: column; gap: 6px; }
+  .email {
+    font-size: 12px; line-height: 1.5; padding: 7px 12px;
+    border-radius: 10px; max-width: 85%;
+  }
+  .msg-us   { background: #1e3a5f; color: #bfdbfe; align-self: flex-end; border-radius: 10px 10px 2px 10px; }
+  .msg-them { background: #1a0a0a; color: #fca5a5; align-self: flex-start; border: 1px solid #3d1010; border-radius: 10px 10px 10px 2px; }
+  .chain-label { font-size: 11px; font-weight: 700; color: #ef4444; text-align: center; margin-top: 6px; }
+  .email code { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+
+  /* Cost box */
+  .before-cost-box { background: #06080f; border: 1px solid #1e293b; border-radius: 10px; padding: 16px; }
+  .before-cost-label { font-size: 11px; font-weight: 700; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 14px; }
+  .before-costs { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+  @media (max-width: 600px) { .before-costs { grid-template-columns: repeat(2,1fr); } }
+  .bcost { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bcost-num   { font-size: 22px; font-weight: 800; color: #ef4444; }
+  .bcost-label { font-size: 10px; font-weight: 600; color: #475569; text-align: center; line-height: 1.4; }
+
+  /* Transition arrow */
+  .before-arrow {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .before-arrow-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, #334155, transparent); }
+  .before-arrow-label { font-size: 12px; font-weight: 700; color: #334155; white-space: nowrap; letter-spacing: 1px; text-transform: uppercase; }
+
+  .conway-banner {
+    display: flex; align-items: center; gap: 16px;
+    background: linear-gradient(135deg, #0f1f3d 0%, #0a1628 100%);
+    border: 1px solid #2563eb;
+    border-left: 4px solid #60a5fa;
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 36px;
+  }
+  .conway-icon { font-size: 22px; flex-shrink: 0; }
+  .conway-text { display: flex; flex-direction: column; gap: 4px; }
+  .conway-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
+    color: #60a5fa; text-transform: uppercase;
+  }
+  .conway-quote {
+    font-size: 14px; font-weight: 500; color: #94a3b8; line-height: 1.5;
+    font-style: italic;
+  }
+
+  /* Mythical Man-Month */
+  .mmm-section {
+    margin-bottom: 36px;
+  }
+  .mmm-header {
+    display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px;
+  }
+  .mmm-label {
+    font-size: 13px; font-weight: 700; color: #f8fafc; letter-spacing: 0.5px;
+  }
+  .mmm-sub {
+    font-size: 11px; color: #475569; font-style: italic;
+  }
+  .mmm-cards {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  }
+  @media (max-width: 900px) { .mmm-cards { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 500px) { .mmm-cards { grid-template-columns: 1fr; } }
+
+  .mmm-card {
+    background: #0d1623; border: 1px solid #1e293b;
+    border-radius: 12px; padding: 16px;
+    display: flex; gap: 12px; align-items: flex-start;
+    transition: border-color 0.2s;
+  }
+  .mmm-card:hover { border-color: #3b82f6; }
+  .mmm-num {
+    font-size: 22px; font-weight: 800; color: #1e3a5f;
+    line-height: 1; flex-shrink: 0; font-variant-numeric: tabular-nums;
+  }
+  .mmm-title {
+    font-size: 13px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; line-height: 1.3;
+  }
+  .mmm-desc {
+    font-size: 13px; color: #64748b; line-height: 1.65;
+  }
+
+  /* Surgical + Clarity row */
+  .mmm-row2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;
+  }
+  @media (max-width: 800px) { .mmm-row2 { grid-template-columns: 1fr; } }
+
+  .surgical-card, .clarity-card {
+    background: #0d1623; border: 1px solid #1e293b;
+    border-radius: 14px; padding: 20px;
+  }
+  .surgical-card { border-top: 3px solid #34d399; }
+  .clarity-card  { border-top: 3px solid #f59e0b; }
+
+  .surgical-header, .clarity-header {
+    display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px;
+  }
+  .surgical-icon, .clarity-icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
+  .surgical-title, .clarity-title { font-size: 14px; font-weight: 800; color: #f1f5f9; }
+  .surgical-sub,   .clarity-sub   { font-size: 11px; color: #475569; margin-top: 2px; }
+
+  .surgical-desc, .clarity-desc {
+    font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 16px;
+  }
+  .surgical-desc strong, .clarity-desc strong { color: #f1f5f9; }
+
+  .surgical-roles {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .role {
+    font-size: 11px; font-weight: 600; padding: 4px 12px;
+    border-radius: 20px; border: 1px solid;
+  }
+  .role-lead    { color: #34d399; border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.07); }
+  .role-support { color: #60a5fa; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.07); }
+  .role-doc     { color: #a78bfa; border-color: rgba(167,139,250,0.3); background: rgba(167,139,250,0.07); }
+  .role-qa      { color: #fbbf24; border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.07); }
+
+  .clarity-how-label {
+    font-size: 11px; font-weight: 700; color: #f59e0b; letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  .clarity-tools { display: flex; flex-direction: column; gap: 10px; }
+  .clarity-tool {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13px; color: #64748b; line-height: 1.6;
+  }
+  .clarity-tool strong { color: #e2e8f0; }
+  .ct-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── PAGE 2 ── */
+  .page-break {
+    border: none; border-top: 1px solid #1e293b;
+    margin: 60px 0 0; padding: 0;
+  }
+
+  .theory-section {
+    margin-bottom: 16px;
+  }
+
+  .theory-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 24px; border-radius: 14px; margin-bottom: 20px;
+  }
+  .theory-header.tt  { background: linear-gradient(135deg, #0c1a2e 0%, #071020 100%); border: 1px solid #1e3a5f; border-left: 4px solid #60a5fa; }
+  .theory-header.acc { background: linear-gradient(135deg, #1a0e28 0%, #100818 100%); border: 1px solid #3d1a5f; border-left: 4px solid #a78bfa; }
+  .theory-header-left { display: flex; align-items: center; gap: 16px; }
+  .theory-icon { font-size: 32px; }
+  .theory-title { font-size: 22px; font-weight: 800; color: #f8fafc; }
+  .theory-sub   { font-size: 13px; color: #475569; margin-top: 3px; }
+
+  /* Team type cards */
+  .tt-team-types {
+    display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .tt-team-types { grid-template-columns: repeat(2,1fr); } }
+
+  .tt-team {
+    border-radius: 14px; border: 1px solid; padding: 18px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .tt-team.stream     { background: #041a10; border-color: #0d3320; }
+  .tt-team.enabling   { background: #030c24; border-color: #0d2456; }
+  .tt-team.complicated{ background: #130a28; border-color: #2d1a4a; }
+  .tt-team.platform   { background: #1a1000; border-color: #3d2a00; }
+
+  .tt-team-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; opacity: 0.7;
+  }
+  .stream .tt-team-badge     { color: #34d399; }
+  .enabling .tt-team-badge   { color: #60a5fa; }
+  .complicated .tt-team-badge{ color: #a78bfa; }
+  .platform .tt-team-badge   { color: #fbbf24; }
+
+  .tt-team-emoji { font-size: 26px; }
+  .tt-team-name  { font-size: 14px; font-weight: 800; color: #f1f5f9; }
+  .tt-team-desc  { font-size: 14px; color: #64748b; line-height: 1.65; flex: 1; }
+  .tt-team-tag {
+    display: inline-block; font-size: 10px; font-weight: 600;
+    padding: 3px 10px; border-radius: 10px; align-self: flex-start;
+  }
+  .stream .tt-team-tag     { color:#34d399; background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.25); }
+  .enabling .tt-team-tag   { color:#60a5fa; background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.25); }
+  .complicated .tt-team-tag{ color:#a78bfa; background:rgba(167,139,250,0.08); border:1px solid rgba(167,139,250,0.25); }
+  .platform .tt-team-tag   { color:#fbbf24; background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); }
+
+  /* Interaction modes */
+  .tt-interactions { background: #0a1020; border: 1px solid #1e293b; border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+  .tt-int-header { font-size: 13px; font-weight: 700; color: #475569; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; }
+  .tt-int-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+  @media (max-width: 700px) { .tt-int-row { grid-template-columns: 1fr; } }
+  .tt-int { display: flex; gap: 12px; font-size: 13px; color: #64748b; line-height: 1.65; }
+  .tt-int strong { color: #e2e8f0; }
+  .tt-int-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+
+  /* Futee mapping box */
+  .tt-futee-box { background: #060e1e; border: 1px solid #1e3a5f; border-radius: 14px; padding: 20px; }
+  .tt-futee-label { font-size: 13px; font-weight: 700; color: #60a5fa; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 14px; }
+  .tt-futee-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 700px) { .tt-futee-grid { grid-template-columns: 1fr; } }
+  .tt-futee-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #94a3b8; line-height: 1.6; }
+  .tt-futee-item strong { color: #f1f5f9; }
+  .ttf-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .stream-dot     { background: #34d399; }
+  .enabling-dot   { background: #60a5fa; }
+  .complicated-dot{ background: #a78bfa; }
+  .platform-dot   { background: #fbbf24; }
+
+  /* Accelerate DORA */
+  .acc-dora { margin-bottom: 20px; }
+  .acc-dora-label, .acc-cap-label {
+    font-size: 13px; font-weight: 700; color: #a78bfa; letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+  .acc-dora-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+  @media (max-width: 900px) { .acc-dora-grid { grid-template-columns: repeat(2,1fr); } }
+
+  .acc-metric {
+    background: #0d0a1e; border: 1px solid #2d1a4a; border-radius: 14px; padding: 18px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .acc-metric-icon { font-size: 26px; }
+  .acc-metric-name { font-size: 14px; font-weight: 800; color: #f1f5f9; }
+  .acc-metric-desc { font-size: 14px; color: #64748b; line-height: 1.65; flex: 1; }
+  .acc-metric-tag {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 3px 10px; border-radius: 10px; align-self: flex-start;
+  }
+  .df   { color:#34d399; background:rgba(52,211,153,0.08);  border:1px solid rgba(52,211,153,0.25); }
+  .lt   { color:#60a5fa; background:rgba(96,165,250,0.08);  border:1px solid rgba(96,165,250,0.25); }
+  .cfr  { color:#f43f82; background:rgba(244,63,130,0.08);  border:1px solid rgba(244,63,130,0.25); }
+  .mttr { color:#fbbf24; background:rgba(251,191,36,0.08);  border:1px solid rgba(251,191,36,0.25); }
+
+  /* Accelerate capabilities */
+  .acc-capabilities { background: #0a0a18; border: 1px solid #1e293b; border-radius: 14px; padding: 20px; }
+  .acc-cap-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+  @media (max-width: 900px) { .acc-cap-grid { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 600px) { .acc-cap-grid { grid-template-columns: 1fr; } }
+  .acc-cap { display: flex; flex-direction: column; gap: 6px; }
+  .acc-cap-title { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+  .acc-cap-desc  { font-size: 13px; color: #64748b; line-height: 1.65; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-indicator">PAGE 1</div>
+
+  <div class="conway-banner">
+    <div class="conway-icon">💡</div>
+    <div class="conway-text">
+      <span class="conway-label">Conway's Law</span>
+      <span class="conway-quote">Organizations design systems that mirror their own internal communication structures. — Melvin Conway, 1967</span>
+    </div>
+  </div>
+
+  <div class="mmm-section">
+    <div class="mmm-header">
+      <span class="mmm-label">📖 The Mythical Man-Month · Key Lessons</span>
+      <span class="mmm-sub">Frederick P. Brooks Jr., 1975</span>
+    </div>
+    <div class="mmm-cards">
+      <div class="mmm-card">
+        <div class="mmm-num">01</div>
+        <div class="mmm-content">
+          <div class="mmm-title">Adding people slows things down</div>
+          <div class="mmm-desc">Adding engineers to a late project makes it later. New members need onboarding time and increase communication overhead exponentially.</div>
+        </div>
+      </div>
+      <div class="mmm-card">
+        <div class="mmm-num">02</div>
+        <div class="mmm-content">
+          <div class="mmm-title">Communication overhead grows quadratically</div>
+          <div class="mmm-desc">As team size grows, the number of communication paths explodes. 4 people = 6 paths. 8 people = 28 paths. Structure and tooling must absorb this.</div>
+        </div>
+      </div>
+      <div class="mmm-card">
+        <div class="mmm-num">03</div>
+        <div class="mmm-content">
+          <div class="mmm-title">Plan to throw one away</div>
+          <div class="mmm-desc">The first system is never right. Build expecting to iterate. Jira gives us visibility to learn fast and adapt — without losing context between versions.</div>
+        </div>
+      </div>
+      <div class="mmm-card">
+        <div class="mmm-num">04</div>
+        <div class="mmm-content">
+          <div class="mmm-title">Conceptual integrity over committee design</div>
+          <div class="mmm-desc">A system with one clear owner is better than one designed by many voices. One integration hub — Jira — is the single source of truth for all coordination.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Surgical Team + Clarity Caveat -->
+    <div class="mmm-row2">
+
+      <div class="surgical-card">
+        <div class="surgical-header">
+          <span class="surgical-icon">🏥</span>
+          <div>
+            <div class="surgical-title">The Surgical Team Model</div>
+            <div class="surgical-sub">Brooks' ideal small team structure</div>
+          </div>
+        </div>
+        <p class="surgical-desc">Brooks argued the most effective team is like a surgical unit — <strong>one lead surgeon</strong> makes all key decisions, supported by specialists who amplify their output without creating noise. Small, focused, fast.</p>
+        <div class="surgical-roles">
+          <span class="role role-lead">🎯 Lead — owns decisions</span>
+          <span class="role role-support">⚙️ Support — removes blockers</span>
+          <span class="role role-doc">📝 Documenter — preserves context</span>
+          <span class="role role-qa">🔍 QA — enforces quality</span>
+        </div>
+      </div>
+
+      <div class="clarity-card">
+        <div class="clarity-header">
+          <span class="clarity-icon">⚡</span>
+          <div>
+            <div class="clarity-title">The One Exception to Communication Overhead</div>
+            <div class="clarity-sub">When tasks are so clear they need no coordination</div>
+          </div>
+        </div>
+        <p class="clarity-desc">Brooks noted that when a task is <strong>so well-defined</strong> that it requires no back-and-forth, parallelisation works and overhead vanishes. The goal of any system is to manufacture this clarity at scale.</p>
+        <div class="clarity-how">
+          <div class="clarity-how-label">How Slack + Jira + Confluence build this clarity</div>
+          <div class="clarity-tools">
+            <div class="clarity-tool">
+              <span class="ct-icon">📋</span>
+              <div><strong>Jira</strong> makes every task explicit — assignee, scope, acceptance criteria. No ambiguity about who does what or when it's done.</div>
+            </div>
+            <div class="clarity-tool">
+              <span class="ct-icon">📚</span>
+              <div><strong>Confluence</strong> stores the why behind every decision. Anyone gets full context without asking — async clarity at scale.</div>
+            </div>
+            <div class="clarity-tool">
+              <span class="ct-icon">💬</span>
+              <div><strong>Slack</strong> handles residual coordination — fast, channel-structured, linked back to Jira so nothing gets lost in a thread.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <header>
+    <div class="org-badge"><div class="org-dot"></div><span>FUTEE · ORG</span></div>
+    <h1>Jira as the <em>Integration Core</em></h1>
+    <p class="subtitle">Every tool flows into Jira · one source of truth · faster for everyone</p>
+  </header>
+
+  <div class="diagram-wrap">
+  <svg viewBox="0 0 1280 620" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="a-pink"   markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L0,8 L10,4z" fill="#f43f82"/></marker>
+      <marker id="a-amber"  markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L0,8 L10,4z" fill="#fbbf24"/></marker>
+      <marker id="a-violet" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L0,8 L10,4z" fill="#a78bfa"/></marker>
+      <marker id="a-blue"   markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L0,8 L10,4z" fill="#60a5fa"/></marker>
+      <marker id="a-orange" markerWidth="10" markerHeight="10" refX="2" refY="4" orient="auto"><path d="M10,0 L10,8 L0,4z" fill="#fb923c"/></marker>
+      <marker id="a-teal"   markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L0,8 L10,4z" fill="#34d399"/></marker>
+
+      <filter id="glow-jira" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="14" result="b"/>
+        <feFlood flood-color="#3b82f6" flood-opacity="0.5" result="c"/>
+        <feComposite in="c" in2="b" operator="in" result="s"/>
+        <feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glow-card" x="-8%" y="-8%" width="116%" height="130%">
+        <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.5"/>
+      </filter>
+
+      <radialGradient id="jira-glow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%"   stop-color="#3b82f6" stop-opacity="0.18"/>
+        <stop offset="70%"  stop-color="#1d4ed8" stop-opacity="0.06"/>
+        <stop offset="100%" stop-color="#000"    stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="g-slack"  x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1f0a14"/><stop offset="100%" stop-color="#110610"/></linearGradient>
+      <linearGradient id="g-aws"    x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1a1000"/><stop offset="100%" stop-color="#0e0a02"/></linearGradient>
+      <linearGradient id="g-vanta"  x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#130a28"/><stop offset="100%" stop-color="#0a0616"/></linearGradient>
+      <linearGradient id="g-conf"   x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#030c24"/><stop offset="100%" stop-color="#020810"/></linearGradient>
+      <linearGradient id="g-gh"     x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#041a10"/><stop offset="100%" stop-color="#020e08"/></linearGradient>
+      <linearGradient id="g-notif"  x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1a0610"/><stop offset="100%" stop-color="#0e0408"/></linearGradient>
+      <linearGradient id="g-email"  x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1a0e04"/><stop offset="100%" stop-color="#0e0702"/></linearGradient>
+      <linearGradient id="g-jira"   x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#071428"/><stop offset="100%" stop-color="#040e1e"/></linearGradient>
+    </defs>
+
+    <!-- Column dividers -->
+    <line x1="430" y1="10" x2="430" y2="610" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="4 8"/>
+    <line x1="850" y1="10" x2="850" y2="610" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="4 8"/>
+
+    <!-- Column headers -->
+    <text x="215" y="24" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#475569" letter-spacing="3">SOURCE TOOLS</text>
+    <rect x="60" y="30" width="310" height="2" rx="1" fill="#1e3a5f"/>
+    <text x="640" y="24" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#475569" letter-spacing="3">INTEGRATION HUB</text>
+    <rect x="460" y="30" width="360" height="2" rx="1" fill="#1e3a5f"/>
+    <text x="1065" y="24" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#475569" letter-spacing="3">OUTPUTS</text>
+    <rect x="870" y="30" width="350" height="2" rx="1" fill="#1e3a5f"/>
+
+    <!-- SOURCE CARDS: x=60 w=330 h=106 gap=16 -->
+    <!-- SLACK y=44 center=97 -->
+    <rect x="60" y="44" width="330" height="106" rx="14" fill="url(#g-slack)" stroke="#f43f82" stroke-width="1.5" filter="url(#glow-card)"/>
+    <rect x="60" y="44" width="6" height="106" rx="3" fill="#f43f82"/>
+    <text x="96"  y="86"  font-size="30">💬</text>
+    <text x="134" y="84"  font-family="'Plus Jakarta Sans',sans-serif" font-weight="800" font-size="18" fill="#fff">Slack</text>
+    <text x="134" y="102" font-family="'Plus Jakarta Sans',sans-serif" font-weight="500" font-size="13" fill="#ffffff">Futee Workspace</text>
+    <text x="68"  y="124" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#f43f82">#deploys · #alerts · #vendors</text>
+    <text x="68"  y="140" font-family="'Plus Jakarta Sans',sans-serif" font-weight="400" font-size="13" fill="#ffffff">EGW &amp; OMBU onboarded here</text>
+
+    <!-- AWS y=166 center=219 -->
+    <rect x="60" y="166" width="330" height="106" rx="14" fill="url(#g-aws)" stroke="#fbbf24" stroke-width="1.5" filter="url(#glow-card)"/>
+    <rect x="60" y="166" width="6" height="106" rx="3" fill="#fbbf24"/>
+    <text x="96"  y="208" font-size="30">☁️</text>
+    <text x="134" y="206" font-family="'Plus Jakarta Sans',sans-serif" font-weight="800" font-size="18" fill="#fff">AWS</text>
+    <text x="134" y="224" font-family="'Plus Jakarta Sans',sans-serif" font-weight="500" font-size="13" fill="#ffffff">Cloud Infra</text>
+    <text x="68"  y="246" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#fbbf24">CloudWatch · Observability</text>
+    <text x="68"  y="262" font-family="'Plus Jakarta Sans',sans-serif" font-weight="400" font-size="13" fill="#ffffff">One-click ticket from any alarm</text>
+
+    <!-- VANTA y=288 center=341 -->
+    <rect x="60" y="288" width="330" height="106" rx="14" fill="url(#g-vanta)" stroke="#a78bfa" stroke-width="1.5" filter="url(#glow-card)"/>
+    <rect x="60" y="288" width="6" height="106" rx="3" fill="#a78bfa"/>
+    <text x="96"  y="330" font-size="30">🛡️</text>
+    <text x="134" y="328" font-family="'Plus Jakarta Sans',sans-serif" font-weight="800" font-size="18" fill="#fff">Vanta</text>
+    <text x="134" y="346" font-family="'Plus Jakarta Sans',sans-serif" font-weight="500" font-size="13" fill="#ffffff">Compliance Monitoring</text>
+    <text x="68"  y="368" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#a78bfa">Security · Controls · Audits</text>
+    <text x="68"  y="384" font-family="'Plus Jakarta Sans',sans-serif" font-weight="400" font-size="13" fill="#ffffff">One click → pre-filled Jira task</text>
+
+    <!-- EMAIL y=410 center=463 -->
+    <rect x="60" y="410" width="330" height="106" rx="14" fill="url(#g-email)" stroke="#fb923c" stroke-width="1.5" filter="url(#glow-card)"/>
+    <rect x="60" y="410" width="6" height="106" rx="3" fill="#fb923c"/>
+    <text x="96"  y="452" font-size="30">✉️</text>
+    <text x="134" y="450" font-family="'Plus Jakarta Sans',sans-serif" font-weight="800" font-size="18" fill="#fff">Email</text>
+    <text x="134" y="468" font-family="'Plus Jakarta Sans',sans-serif" font-weight="500" font-size="13" fill="#ffffff">External Input</text>
+    <text x="68"  y="490" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#fb923c">Vendors · Partners · Clients</text>
+    <text x="68"  y="506" font-family="'Plus Jakarta Sans',sans-serif" font-weight="400" font-size="13" fill="#ffffff">Forwarded into Jira as tracked issues</text>
+
+    <!-- JIRA HUB center=640,310 -->
+    <circle cx="640" cy="310" r="115" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity="0.5" class="pulse"/>
+    <circle cx="640" cy="310" r="115" fill="none" stroke="#3b82f6" stroke-width="1"   opacity="0.3" class="pulse2"/>
+    <circle cx="640" cy="310" r="115" fill="none" stroke="#60a5fa" stroke-width="0.8" opacity="0.2" class="pulse3"/>
+    <circle cx="640" cy="310" r="148" fill="url(#jira-glow)"/>
+    <circle cx="640" cy="310" r="110" fill="none" stroke="#1d4ed8" stroke-width="1" stroke-dasharray="3 9" opacity="0.5"/>
+    <rect x="524" y="232" width="232" height="156" rx="20" fill="url(#g-jira)" stroke="#3b82f6" stroke-width="2.5" filter="url(#glow-jira)"/>
+    <rect x="526" y="234" width="228" height="152" rx="19" fill="none" stroke="#60a5fa" stroke-width="0.8" opacity="0.3"/>
+    <text x="640" y="288" text-anchor="middle" font-size="34">📋</text>
+    <text x="640" y="324" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-weight="800" font-size="28" fill="#60a5fa" letter-spacing="-1">JIRA</text>
+    <text x="640" y="346" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-weight="600" font-size="13" fill="#334155" letter-spacing="3">ISSUE TRACKER</text>
+    <rect x="582" y="356" width="116" height="22" rx="11" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1"/>
+    <text x="640" y="371" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#93c5fd">Central Hub</text>
+
+    <!-- OUTPUT CARDS: x=870 w=340 h=106 gap=16 -->
+    <!-- CONFLUENCE y=44 center=97 -->
+    <rect x="870" y="44" width="340" height="106" rx="14" fill="url(#g-conf)" stroke="#60a5fa" stroke-width="1.5" filter="url(#glow-card)"/>
+    <rect x="870" y="44" width="6" height="106" rx="3" fill="#60a5fa"/>
+    <text x="908" y="86"  font-size="30">📚</text>
+    <text x="948" y="84"  font-family="'Plus Jakarta Sans',sans-serif" font-weight="800" font-size="18" fill="#fff">Confluence</text>
+    <text x="948" y="102" font-family="'Plus Jakarta Sans',sans-serif" font-weight="500" font-size="13" fill="#ffffff">Shared Knowledge Base</text>
+    <text x="878" y="124" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#60a5fa">Docs · SOPs · Meeting Notes</text>
+    <text x="878" y="140" font-family="'Plus Jakarta Sans',sans-serif" font-weight="400" font-size="13" fill="#ffffff">All teams · linked to Jira issues</text>
+
+    <!-- GITHUB y=166 center=219 -->
+    <rect x="870" y="166" width="340" height="106" rx="14" fill="url(#g-gh)" stroke="#34d399" stroke-width="1.5" filter="url(#glow-card)"/>
+    <rect x="870" y="166" width="6" height="106" rx="3" fill="#34d399"/>
+    <text x="908" y="208" font-size="30">🐙</text>
+    <text x="948" y="206" font-family="'Plus Jakarta Sans',sans-serif" font-weight="800" font-size="18" fill="#fff">GitHub</text>
+    <text x="948" y="224" font-family="'Plus Jakarta Sans',sans-serif" font-weight="500" font-size="13" fill="#ffffff">Code &amp; CI/CD</text>
+    <text x="878" y="246" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#34d399">PRs · Branches · Pipelines</text>
+    <text x="878" y="262" font-family="'Plus Jakarta Sans',sans-serif" font-weight="400" font-size="13" fill="#ffffff">Branch names auto-linked to issues</text>
+
+    <!-- SLACK ALERTS y=288 center=341 -->
+    <rect x="870" y="288" width="340" height="106" rx="14" fill="url(#g-notif)" stroke="#f43f82" stroke-width="1.5" filter="url(#glow-card)"/>
+    <rect x="870" y="288" width="6" height="106" rx="3" fill="#f43f82"/>
+    <text x="908" y="330" font-size="30">🔔</text>
+    <text x="948" y="328" font-family="'Plus Jakarta Sans',sans-serif" font-weight="800" font-size="18" fill="#fff">Slack Alerts</text>
+    <text x="948" y="346" font-family="'Plus Jakarta Sans',sans-serif" font-weight="500" font-size="13" fill="#ffffff">Status Updates</text>
+    <text x="878" y="368" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="13" fill="#f43f82">Real-time · No chasing needed</text>
+    <text x="878" y="384" font-family="'Plus Jakarta Sans',sans-serif" font-weight="400" font-size="13" fill="#ffffff">Jira status → DM / channel post</text>
+
+    <!-- ARROWS -->
+    <!-- SLACK → JIRA rail x=432 entry y=270 -->
+    <path d="M 392 97 H 432 Q 446 97 446 111 V 258 Q 446 270 460 270 H 522"
+          fill="none" stroke="#f43f82" stroke-width="2.4" stroke-dasharray="8 5" marker-end="url(#a-pink)" class="flow"/>
+    <text x="396" y="90" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="10" fill="#f43f82">/jira create</text>
+
+    <!-- AWS → JIRA rail x=454 entry y=300 -->
+    <path d="M 392 219 H 454 Q 468 219 468 233 V 288 Q 468 300 482 300 H 522"
+          fill="none" stroke="#fbbf24" stroke-width="2.4" stroke-dasharray="8 5" marker-end="url(#a-amber)" class="flow"/>
+    <text x="396" y="213" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="10" fill="#fbbf24">1-click ticket</text>
+
+    <!-- VANTA → JIRA rail x=476 entry y=330 -->
+    <path d="M 392 341 H 476 Q 490 341 490 335 V 332 Q 490 330 504 330 H 522"
+          fill="none" stroke="#a78bfa" stroke-width="2.4" stroke-dasharray="8 5" marker-end="url(#a-violet)" class="flow"/>
+    <text x="396" y="335" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="10" fill="#a78bfa">compliance task</text>
+
+    <!-- EMAIL → JIRA reversed path, arrowhead at Jira y=360 -->
+    <path d="M 522 360 V 420 Q 522 434 508 434 H 392"
+          fill="none" stroke="#fb923c" stroke-width="2.4" stroke-dasharray="8 5" marker-start="url(#a-orange)" class="flow"/>
+    <text x="396" y="428" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="10" fill="#fb923c">forward to ticket</text>
+
+    <!-- JIRA → CONFLUENCE rail x=822 exit y=270 -->
+    <path d="M 758 270 H 822 Q 836 270 836 256 V 111 Q 836 97 850 97 H 868"
+          fill="none" stroke="#60a5fa" stroke-width="2.4" stroke-dasharray="8 5" marker-end="url(#a-blue)" class="flow"/>
+    <text x="762" y="250" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="10" fill="#60a5fa">linked docs</text>
+
+    <!-- JIRA → GITHUB rail x=822 exit y=300 -->
+    <path d="M 758 300 H 822 Q 836 300 836 286 V 233 Q 836 219 850 219 H 868"
+          fill="none" stroke="#34d399" stroke-width="2.4" stroke-dasharray="8 5" marker-end="url(#a-teal)" class="flow"/>
+    <text x="762" y="282" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="10" fill="#34d399">branch → PR</text>
+
+    <!-- JIRA → SLACK ALERTS rail x=822 exit y=340 -->
+    <path d="M 758 340 H 822 Q 836 340 836 354 V 329 Q 836 341 850 341 H 868"
+          fill="none" stroke="#f43f82" stroke-width="2.4" stroke-dasharray="8 5" marker-end="url(#a-pink)" class="flow"/>
+    <text x="762" y="360" font-family="'Plus Jakarta Sans',sans-serif" font-weight="700" font-size="10" fill="#f43f82">status alert</text>
+
+  </svg>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:#f43f82"></div>Slack → Jira</div>
+    <div class="leg"><div class="leg-dot" style="background:#fbbf24"></div>AWS → Jira</div>
+    <div class="leg"><div class="leg-dot" style="background:#a78bfa"></div>Vanta → Jira</div>
+    <div class="leg"><div class="leg-dot" style="background:#fb923c"></div>Email → Jira</div>
+    <div class="leg"><div class="leg-dot" style="background:#60a5fa"></div>Jira → Confluence</div>
+    <div class="leg"><div class="leg-dot" style="background:#34d399"></div>Jira → GitHub</div>
+    <div class="leg"><div class="leg-dot" style="background:#f43f82"></div>Jira → Slack Alerts</div>
+  </div>
+
+  <!-- DESCRIPTION CARDS -->
+  <div class="cards">
+    <div class="card card-slack">
+      <div class="card-top" style="background:#f43f82"></div>
+      <div class="card-body">
+        <div class="card-title">💬 Slack → Jira</div>
+        <div class="card-desc">Type <strong style="color:#f43f82">/jira create</strong> in any channel to instantly open a Jira issue. No tab switching needed. Status updates flow back as channel notifications.</div>
+        <span class="card-tag" style="color:#f43f82;border-color:rgba(244,63,130,0.3);background:rgba(244,63,130,0.08)">/jira create command</span>
+      </div>
+    </div>
+    <div class="card card-aws">
+      <div class="card-top" style="background:#fbbf24"></div>
+      <div class="card-body">
+        <div class="card-title">☁️ AWS → Jira + Slack</div>
+        <div class="card-desc">AWS flags issues in real time. From any CloudWatch alarm, create a ticket with one click — full context included. Alert also posts to #deploys.</div>
+        <span class="card-tag" style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.08)">CloudWatch integration</span>
+      </div>
+    </div>
+    <div class="card card-vanta">
+      <div class="card-top" style="background:#a78bfa"></div>
+      <div class="card-body">
+        <div class="card-title">🛡️ Vanta → Jira</div>
+        <div class="card-desc">When Vanta flags a compliance failure, one click creates a pre-filled Jira task. Assigned, described and ready to action immediately — no copy paste needed.</div>
+        <span class="card-tag" style="color:#a78bfa;border-color:rgba(167,139,250,0.3);background:rgba(167,139,250,0.08)">one-click task creation</span>
+      </div>
+    </div>
+    <div class="card card-github">
+      <div class="card-top" style="background:#34d399"></div>
+      <div class="card-body">
+        <div class="card-title">🐙 Jira → GitHub</div>
+        <div class="card-desc">Jira issues drive branch creation. Branch names auto-link to tickets. Merged PRs and CI/CD events update and close issues automatically — full traceability.</div>
+        <span class="card-tag" style="color:#34d399;border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.08)">webhooks + branch links</span>
+      </div>
+    </div>
+    <div class="card card-conf">
+      <div class="card-top" style="background:#60a5fa"></div>
+      <div class="card-body">
+        <div class="card-title">📚 Jira → Confluence</div>
+        <div class="card-desc">Jira issues link bidirectionally to Confluence docs. SOPs, runbooks and decisions stay connected to the work they belong to. All teams contribute.</div>
+        <span class="card-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.3);background:rgba(96,165,250,0.08)">docs linked to issues</span>
+      </div>
+    </div>
+    <div class="card card-email">
+      <div class="card-top" style="background:#fb923c"></div>
+      <div class="card-body">
+        <div class="card-title">✉️ Email → Jira</div>
+        <div class="card-desc">Vendor and partner emails from EGW &amp; OMBU get forwarded directly into Jira as tracked issues. No more lost threads or 4–6 hour reply delays.</div>
+        <span class="card-tag" style="color:#fb923c;border-color:rgba(251,146,60,0.3);background:rgba(251,146,60,0.08)">forward to ticket</span>
+      </div>
+    </div>
+  </div>
+
+  <footer>futee · jira integration map · internal teams + EGW &amp; OMBU vendors · unified communication</footer>
+
+  <!-- ═══════════════ PAGE 2 ═══════════════ -->
+  <div class="page-break"></div>
+  <div class="page-indicator" style="margin-top: 60px;">PAGE 2</div>
+
+  <!-- BEFORE section -->
+  <div class="before-section">
+    <div class="before-header">
+      <span class="before-icon">😩</span>
+      <div>
+        <div class="before-title">Before — How We Were Actually Working</div>
+        <div class="before-sub">The real cost of fragmented communication with OMBU &amp; EGW</div>
+      </div>
+    </div>
+
+    <div class="before-grid">
+
+      <!-- OMBU -->
+      <div class="before-vendor ombu-card">
+        <div class="before-vendor-header">
+          <span class="bv-dot ombu-dot"></span>
+          <div class="before-vendor-name">OMBU</div>
+          <span class="bv-channel">via Email</span>
+        </div>
+        <div class="before-friction-list">
+          <div class="friction-item">
+            <span class="fi-icon">✉️</span>
+            <div>
+              <div class="fi-title">4–6 hour reply times</div>
+              <div class="fi-desc">Updating a single Python dependency — something that takes 2 minutes to action — would spiral into 3 to 4 back-and-forth emails before anyone agreed on the version or approach.</div>
+            </div>
+          </div>
+          <div class="friction-item">
+            <span class="fi-icon">📅</span>
+            <div>
+              <div class="fi-title">Charged meetings just to align</div>
+              <div class="fi-desc">4 to 6 meetings per month billed back to us, just to get on the same page on tasks that could have been a single Jira ticket with acceptance criteria.</div>
+            </div>
+          </div>
+          <div class="friction-item">
+            <span class="fi-icon">🔍</span>
+            <div>
+              <div class="fi-title">No task linkage or audit trail</div>
+              <div class="fi-desc">Decisions made in email threads had no home. Context got buried. New people joining had no way to understand why a dependency was pinned to a specific version.</div>
+            </div>
+          </div>
+        </div>
+        <div class="before-email-chain">
+          <div class="before-email-label">Example — updating a Python dependency</div>
+          <div class="email-chain">
+            <div class="email msg-us">Hey, can you bump <code>requests</code> to 2.31.0 in requirements.txt? There's a security fix.</div>
+            <div class="email msg-them">Sure — is this for the main service or the data pipeline?</div>
+            <div class="email msg-us">Main service. Both actually — everywhere it's used.</div>
+            <div class="email msg-them">Got it. Do you want us to run the test suite after or just open a PR?</div>
+            <div class="email msg-us">Open a PR, run tests, let me know results. Please do it this sprint.</div>
+            <div class="email msg-them">Which branch should we target?</div>
+            <div class="email chain-label">⏱ 2–3 days · 6 emails · PR not yet opened</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EGW -->
+      <div class="before-vendor egw-card">
+        <div class="before-vendor-header">
+          <span class="bv-dot egw-dot"></span>
+          <div class="before-vendor-name">EGW</div>
+          <span class="bv-channel">via Google Meet + Teams (mostly email)</span>
+        </div>
+        <div class="before-friction-list">
+          <div class="friction-item">
+            <span class="fi-icon">🔐</span>
+            <div>
+              <div class="fi-title">Login friction every call</div>
+              <div class="fi-desc">EGW used Google Meet. We had to log into a shared Google account every time to join a call. Different to our Teams setup — awkward, slow, easy to miss meetings.</div>
+            </div>
+          </div>
+          <div class="friction-item">
+            <span class="fi-icon">📨</span>
+            <div>
+              <div class="fi-title">Hard to reach — defaulted to email</div>
+              <div class="fi-desc">Teams calls rarely connected. Email became the fallback — which meant the same 4–6 hour lag, thread fragmentation and no way to track what was agreed on a dependency change.</div>
+            </div>
+          </div>
+          <div class="friction-item">
+            <span class="fi-icon">🌀</span>
+            <div>
+              <div class="fi-title">No single place for updates</div>
+              <div class="fi-desc">Status updates lived across email, Teams chat and Google Meet notes — or in someone's head. No visibility without chasing. No record of why a version was chosen.</div>
+            </div>
+          </div>
+        </div>
+        <div class="before-cost-box">
+          <div class="before-cost-label">The compounding cost</div>
+          <div class="before-costs">
+            <div class="bcost"><span class="bcost-num">4–6</span><span class="bcost-label">hours avg reply time</span></div>
+            <div class="bcost"><span class="bcost-num">4–6</span><span class="bcost-label">billed meetings / month</span></div>
+            <div class="bcost"><span class="bcost-num">3–4</span><span class="bcost-label">emails per simple change</span></div>
+            <div class="bcost"><span class="bcost-num">0</span><span class="bcost-label">searchable task history</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="before-arrow">
+      <div class="before-arrow-line"></div>
+      <div class="before-arrow-label">All of this is replaced by the stack on page 1</div>
+      <div class="before-arrow-line"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PAGE 3 ═══════════════ -->
+  <div class="page-break"></div>
+  <div class="page-indicator" style="margin-top: 60px;">PAGE 3</div>
+
+  <!-- Team Topologies -->
+  <div class="theory-section">
+    <div class="theory-header tt">
+      <div class="theory-header-left">
+        <span class="theory-icon">🗺️</span>
+        <div>
+          <div class="theory-title">Team Topologies</div>
+          <div class="theory-sub">Matthew Skelton &amp; Manuel Pais · 2019 · How to structure teams for fast flow</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tt-team-types">
+      <div class="tt-team stream">
+        <div class="tt-team-badge">Stream-aligned</div>
+        <div class="tt-team-emoji">🌊</div>
+        <div class="tt-team-name">Product / Feature Team</div>
+        <div class="tt-team-desc">The primary team type. Aligned to a flow of work — a product, service, or user journey. Owns their domain end to end. At Futee, this is the core build team.</div>
+        <div class="tt-team-tag">owns outcomes</div>
+      </div>
+      <div class="tt-team enabling">
+        <div class="tt-team-badge">Enabling</div>
+        <div class="tt-team-emoji">🔧</div>
+        <div class="tt-team-name">DevOps / Platform Team</div>
+        <div class="tt-team-desc">Helps stream teams unblock themselves. Brings capability, not dependency. Temporary by design — they up-skill and step back.</div>
+        <div class="tt-team-tag">reduces cognitive load</div>
+      </div>
+      <div class="tt-team complicated">
+        <div class="tt-team-badge">Complicated Subsystem</div>
+        <div class="tt-team-emoji">🧮</div>
+        <div class="tt-team-name">Specialist Domain Team</div>
+        <div class="tt-team-desc">Handles deep expertise areas — compliance, security, ML. Called in when the cognitive load is too high for a stream team alone. Vanta lives here.</div>
+        <div class="tt-team-tag">deep expertise</div>
+      </div>
+      <div class="tt-team platform">
+        <div class="tt-team-badge">Platform</div>
+        <div class="tt-team-emoji">🏗️</div>
+        <div class="tt-team-name">Internal Platform</div>
+        <div class="tt-team-desc">Provides self-service infrastructure to all other teams. AWS + Jira + Confluence + Slack together form Futee's internal platform layer.</div>
+        <div class="tt-team-tag">self-service foundation</div>
+      </div>
+    </div>
+
+    <div class="tt-interactions">
+      <div class="tt-int-header">Three Interaction Modes</div>
+      <div class="tt-int-row">
+        <div class="tt-int">
+          <span class="tt-int-icon">🤝</span>
+          <div>
+            <strong>Collaboration</strong> — two teams work closely together for a defined period to discover new things. Then they separate. Not a permanent state.
+          </div>
+        </div>
+        <div class="tt-int">
+          <span class="tt-int-icon">📡</span>
+          <div>
+            <strong>X-as-a-Service</strong> — one team consumes something another provides with minimal interaction. AWS to Futee is this. Clean, low-friction.
+          </div>
+        </div>
+        <div class="tt-int">
+          <span class="tt-int-icon">🎓</span>
+          <div>
+            <strong>Facilitating</strong> — an enabling team helps a stream team level up, then steps away. Avoids permanent dependency and bottlenecks.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tt-futee-box">
+      <div class="tt-futee-label">⚡ How this maps to Futee right now</div>
+      <div class="tt-futee-grid">
+        <div class="tt-futee-item"><span class="ttf-dot stream-dot"></span>Futee core team is the <strong>stream-aligned team</strong> — owns delivery end to end</div>
+        <div class="tt-futee-item"><span class="ttf-dot platform-dot"></span>AWS + Jira + Slack + Confluence = the <strong>platform layer</strong> — self-service, low friction</div>
+        <div class="tt-futee-item"><span class="ttf-dot complicated-dot"></span>Vanta = <strong>complicated subsystem</strong> — deep compliance expertise feeding into Jira</div>
+        <div class="tt-futee-item"><span class="ttf-dot enabling-dot"></span>EGW &amp; OMBU onboarded via Slack = moving toward <strong>X-as-a-Service</strong> interaction mode</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accelerate -->
+  <div class="theory-section" style="margin-top: 32px;">
+    <div class="theory-header acc">
+      <div class="theory-header-left">
+        <span class="theory-icon">🚀</span>
+        <div>
+          <div class="theory-title">Accelerate</div>
+          <div class="theory-sub">Nicole Forsgren, Jez Humble &amp; Gene Kim · 2018 · The science of lean software and DevOps</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acc-dora">
+      <div class="acc-dora-label">The 4 DORA Metrics — What elite teams measure</div>
+      <div class="acc-dora-grid">
+        <div class="acc-metric">
+          <div class="acc-metric-icon">📦</div>
+          <div class="acc-metric-name">Deployment Frequency</div>
+          <div class="acc-metric-desc">How often you ship to production. Elite: multiple times per day. Jira tracks every release cycle — giving visibility across the team.</div>
+          <div class="acc-metric-tag df">deploy often</div>
+        </div>
+        <div class="acc-metric">
+          <div class="acc-metric-icon">⏱️</div>
+          <div class="acc-metric-name">Lead Time for Changes</div>
+          <div class="acc-metric-desc">Time from commit to production. Elite: under one hour. GitHub linked to Jira means every PR has a ticket — full traceability of cycle time.</div>
+          <div class="acc-metric-tag lt">ship fast</div>
+        </div>
+        <div class="acc-metric">
+          <div class="acc-metric-icon">🔥</div>
+          <div class="acc-metric-name">Change Failure Rate</div>
+          <div class="acc-metric-desc">% of deployments causing incidents. Elite: 0–15%. Vanta → Jira ensures compliance issues surface as tasks before they become failures.</div>
+          <div class="acc-metric-tag cfr">fail less</div>
+        </div>
+        <div class="acc-metric">
+          <div class="acc-metric-icon">🔁</div>
+          <div class="acc-metric-name">Mean Time to Recovery</div>
+          <div class="acc-metric-desc">How fast you recover when things break. Elite: under one hour. AWS CloudWatch → Jira → Slack means the right people are notified in seconds.</div>
+          <div class="acc-metric-tag mttr">recover fast</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acc-capabilities">
+      <div class="acc-cap-label">Key Capabilities Accelerate Identifies · Applied to Futee</div>
+      <div class="acc-cap-grid">
+        <div class="acc-cap">
+          <div class="acc-cap-title">🔀 Trunk-based development</div>
+          <div class="acc-cap-desc">Small, frequent commits to a shared branch. GitHub + Jira branch linking enforces discipline — every branch traces to a ticket.</div>
+        </div>
+        <div class="acc-cap">
+          <div class="acc-cap-title">📋 Work visibility</div>
+          <div class="acc-cap-desc">Accelerate found that teams with clear work-in-progress limits outperform those without. Jira is our WIP board — limits context switching.</div>
+        </div>
+        <div class="acc-cap">
+          <div class="acc-cap-title">🔄 Loosely coupled architecture</div>
+          <div class="acc-cap-desc">Teams that can deploy independently move faster. Our tool stack is designed so each integration (Slack, AWS, Vanta) fires into Jira independently.</div>
+        </div>
+        <div class="acc-cap">
+          <div class="acc-cap-title">📣 Generative culture</div>
+          <div class="acc-cap-desc">Accelerate links culture to performance. High-trust, high-information flow. Slack as the communication layer surfaces information without gatekeeping.</div>
+        </div>
+        <div class="acc-cap">
+          <div class="acc-cap-title">📚 Documentation as code</div>
+          <div class="acc-cap-desc">Decisions are as important as code. Confluence linked to Jira issues means every architectural decision has a home and a trail.</div>
+        </div>
+        <div class="acc-cap">
+          <div class="acc-cap-title">⚡ Fast feedback loops</div>
+          <div class="acc-cap-desc">Elite teams get signal fast and act. AWS → Jira → Slack closes the loop from alarm to ticket to notification in under a minute.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer style="margin-top: 48px;">futee · team design principles · mythical man-month · team topologies · accelerate</footer>
+
+</div>
+</body>
+</html>
